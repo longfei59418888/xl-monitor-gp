@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        .red{
+            color: red;
+        }
+        .yellow{
+            color: #ffaf0a;
+        }
+        .green{
+            color: green;
+        }
+    </style>
+</head>
+<body>
+<script crossorigin="anonymous"
+        integrity="sha512-ZqQWGugamKhlSUqM1d/HMtwNG+hITmd/ptoof91lt5ojFZ+2bKlkvlzkmnDIrnikDY+UDVZVupLf6MNbuhtFSw=="
+        src="https://lib.baomitu.com/socket.io/3.1.0/socket.io.min.js"></script>
+<ul id="list"></ul>
+<script>
+
+    function push(title) {
+        const NotificationInstance = Notification || window.Notification;
+        if (NotificationInstance.permission === "default") {
+            NotificationInstance.requestPermission().then(() => {
+                send(title)
+            })
+        } else if (NotificationInstance.permission === 'granted') {
+            send(title)
+        }
+
+        function send(title) {
+            const n = new NotificationInstance(title, {
+                body: '你的朋友有新状态啦，快去围观吧！',
+                tag: '2ue',
+                data: {
+                    url: 'https://2ue.github.io'
+                }
+            });
+            n.onclick = function (e) {
+                window.open(n.data.url, '_blank');
+                n.close();
+            }
+        }
+    }
+
+    const cache = {}
+    const LIST = []
+    var socket = io('https://127.0.0.1:8000');
+    socket.on('getMsg', rsts => {
+        const rst = JSON.parse(rsts)
+        const {
+            signal,
+            data = {}
+        } = rst
+        const {code, Low} = data
+
+        if (!cache[code] || Math.abs(cache[code] - Low) > 3 || signal === 'BUY' || signal === 'SALE') {
+            refresh(signal, rsts)
+            push('test')
+        } else {
+            refresh(signal, rsts)
+        }
+        if (signal !== 'BUY' && signal !== 'SALE') {
+            cache[code] = Low
+        }
+
+    })
+
+    function refresh(signal, rsts) {
+        if (signal == 'BUY_01') console.info(rsts)
+        if (signal == 'BUY_02') console.warn(rsts)
+        if (signal == 'BUY_03') console.error(rsts)
+        if (signal === 'BUY' || signal === 'SALE') console.error(`----------${rsts}------------`)
+        LIST.unshift({
+            signal,
+            rsts
+        })
+        LIST.slice(0, 25)
+        let html = ''
+        LIST.forEach(item => {
+            const {
+                signal,
+                rsts
+            } = item
+            if (item) {
+                if (signal == 'BUY_01') html += `<li class="green">${rsts}</li>`
+                if (signal == 'BUY_02') html += `<li class="yellow">${rsts}</li>`
+                if (signal == 'BUY_03' || signal === 'BUY' || signal === 'SALE') html += `<li class="red">${rsts}</li>`
+            }
+        })
+        document.querySelector('#list').innerHTML = html
+    }
+
+
+</script>
+</body>
+</html>
