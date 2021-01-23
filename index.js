@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const {init} = require('./libs/socket')
 const {run} = require('./libs/crawling')
+const {getInfo} = require('./libs/info')
 const app = new Koa()
 var cors = require('koa2-cors');
 const views = require('koa-views')
@@ -20,6 +21,10 @@ const router = require('koa-router')()
 router.get('/index', async (ctx, next) => {
     await ctx.render('index')
 })
+router.get('/info/:code', async (ctx, next) => {
+    const data = await getInfo(code)
+    await ctx.render('index', data)
+})
 app.use(router.routes(), router.allowedMethods())
 
 
@@ -27,6 +32,3 @@ server.listen(8000, () => {
     console.log('start')
     run()
 })
-
-
-
