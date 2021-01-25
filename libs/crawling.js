@@ -5,6 +5,8 @@ const {push} = require('./socket')
 const schedule = require('node-schedule');
 const crypto = require('crypto');
 const iconv = require('iconv-lite');
+const zlib = require('zlib');
+const http = require('http')
 const md5 = crypto.createHash('md5');
 
 const LISTS = config.lists;
@@ -97,17 +99,17 @@ function run() {
     scan(0)
 }
 
-msg({
-    code: '300562'
-}).then((data) => {
-    console.log('NOTE', data)
-
-}, (err) => {
-    console.log('NOTE', err)
-})
+// msg({
+//     code: '300059'
+// }).then((data) => {
+//     console.log('NOTE', data)
+//
+// }, (err) => {
+//     console.log('NOTE', err)
+// })
 
 function send(signal, data) {
-    // console.log(signal, data)
+    console.log(signal, data)
     push({
         signal,
         data
@@ -198,66 +200,83 @@ function getToday(s, time) {
 /*
 * 获取公共
 * */
-function msg(data) {
-    const {code} = data
+function msg(target) {
+    const {code} = target
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             reject(null)
         }, 3000)
-        axios.get(`http://data.eastmoney.com/notices/getdata.ashx?StockCode=${code}&CodeType=A&PageIndex=1&PageSize=15`,{
-            headers:{
-                "User-Agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36',
-                'Upgrade-Insecure-Requests':1,
-                'Host':'data.eastmoney.com',
-                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
-            }
-        })
-            .then((rst) => {
-                let msgList = []
-                console.log(rst.data)
-                console.log(iconv.decode(Buffer.from(rst.data),'gb2312'))
-                return
-                eval(iconv.decode(rst.data.replace('var  = ', 'msgList  = '),'gb2312'))
-                const {data} = msgList
-                let lists = []
-                data.forEach(item => {
-                    debugger
-                    const {art_code, title, display_time, columns} = item
-                    const type = columns.reduce((a, item) => item.column_name + a, '')
-                    const href = `http://data.eastmoney.com/notices/detail/${code}/${art_code}.html`
-                    if (new Date().getTime() - 3 * 24 * 60 * 60 * 1000 < new Date(display_time).getTime()) {
-                        if (OWNS.indexOf(code) != -1) {
-                            ['减持', '股份质押'].forEach(item => {
-                                if (type.indexOf(item) != -1) {
-                                    lists.push({
-                                        ...data,
-                                        href,
-                                        id: md5.update(title).digest('hex'),
-                                        title,
-                                        type: item
-                                    })
-                                }
-                            })
-                        } else {
-                            ['签订协议', '重大合同', '增发', '股权激励', "调研活动"].forEach(item => {
-                                if (type.indexOf(item) != -1) {
-                                    lists.push({
-                                        ...data,
-                                        href,
-                                        title,
-                                        id: md5.update(title).digest('hex'),
-                                        type: item
-                                    })
-                                }
-                            })
-                        }
+        const req = http.request({
+            hostname: 'data.eastmoney.com',
+            port: 80,
+            path: `/notices/getdata.ashx?StockCode=${code}&CodeType=A&PageIndex=1&PageSize=15`,
+            method: 'GET',
+            headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.11 Safari/537.36',
+                'Accept-Encoding': 'gzip, deflate',
+            },
+        }, function (res) {
+            const chunks = [];
+            res.on('data', function (chunk) {
+                chunks.push(chunk);
+            });
+            res.on('error', function (err) {
+                reject()
+            });
+            res.on('end', function () {
+                const buffer = Buffer.concat(chunks);
+                zlib.gunzip(buffer, function (err, decoded) {
+                    deal(iconv.decode(decoded, 'gb2312'))
+                });
+            });
+        });
 
+        req.end();
+
+        function deal(rst) {
+            let msgList = null
+            eval(rst.replace('var  = ', 'msgList  = '))
+            const {data} = msgList
+            let lists = []
+            data.forEach(item => {
+                const {art_code, title, display_time, columns} = item
+                const type = columns.reduce((a, item) => item.column_name + a, '')
+                const href = `http://data.eastmoney.com/notices/detail/${code}/${art_code}.html`
+                if (new Date().getTime() - 3 * 24 * 60 * 60 * 1000 < new Date(display_time).getTime() && art_code) {
+                    if (OWNS.indexOf(code) != -1) {
+                        ['减持', '股份质押'].forEach(item => {
+                            if (type.indexOf(item) != -1) {
+                                lists.push({
+                                    ...target,
+                                    href,
+                                    id: md5.update(art_code).digest('hex'),
+                                    title,
+                                    type: item
+                                })
+                            }
+                        })
+                    } else {
+                        ['签订协议', '重大合同', '增发', '股权激励', '对外投资'].forEach(item => {
+                            if (type.indexOf(item) != -1) {
+                                lists.push({
+                                    ...target,
+                                    href,
+                                    title,
+                                    id: md5.update(art_code).digest('hex'),
+                                    type: item
+                                })
+                            }
+                        })
                     }
-                })
-                resolve(lists)
+
+                }
             })
+            resolve(lists)
+        }
     })
 }
+
 
 module.exports = {
     run: function () {
