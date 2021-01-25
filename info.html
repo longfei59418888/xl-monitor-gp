@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        .red{
+            color: red;
+        }
+        .yellow{
+            color: #ffaf0a;
+        }
+        .green{
+            color: green;
+        }
+    </style>
+</head>
+<body>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<ul id="list"></ul>
+<iframe id="test" src="http://data.eastmoney.com/notices/getdata.ashx?StockCode=300562&CodeType=A&PageIndex=1&PageSize=15" frameborder="0"></iframe>
+<script>
+    document.getElementById('test').onload = ()=>{
+        console.log(document.getElementById('test'))
+    }
+    // console.log(axios)
+    axios.get('http://data.eastmoney.com/notices/getdata.ashx?StockCode=300562&CodeType=A&PageIndex=1&PageSize=15')
+        .then(function (res) {
+            console.log("返回结果==>",res);
+        })
+
+
+</script>
+</body>
+</html>
