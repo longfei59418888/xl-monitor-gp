@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no,viewport-fit=cover">
+    <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
+    <link rel="stylesheet" href="../bootstrap.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            padding: 30px;
+        }
+        .table-responsive{
+            margin-top: 20px;
+        }
+        .options{
+            font-size: 0;
+        }
+        .options button{
+            font-size: 14px;
+            display: inline-block;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+<div style="max-width: 640px;margin: 0 auto">
+    <div class="option">
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Search for...">
+                    <span class="input-group-btn"><button class="btn btn-default" type="button">添加</button></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <% list.forEach(function(item){ %>
+                <tr>
+                    <td> <%- item.name %></td>
+                    <td> <%- item.code %></td>
+                    <td class="options">
+                        <button class="btn btn-success btn-xs" type="submit">持有</button>
+                        <button class="btn btn-danger btn-xs" type="submit">删除</button>
+                    </td>
+                </tr>
+            <% }); %>
+        </table>
+    </div>
+</div>
+<script>
+
+
+</script>
+</body>
+</html>

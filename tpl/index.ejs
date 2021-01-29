@@ -52,6 +52,8 @@
     var socket = io('https://127.0.0.1:8000');
     socket.on('getMsg', rsts => {
         const rst = JSON.parse(rsts)
+        console.log(rst)
+        return
         const {
             signal,
             data = {}

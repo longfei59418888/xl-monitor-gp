@@ -90,7 +90,7 @@ function run() {
             }
             msg(target).then((data) => {
                 console.log(data)
-                send('NOTE', data)
+                // send('NOTE', data)
                 index++
                 scan(index)
             }, () => {
@@ -204,7 +204,8 @@ function msg(target) {
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             reject(null)
-        }, 3000)
+        }, 300)
+        return
         const req = http.request({
             hostname: 'data.eastmoney.com',
             port: 80,

@@ -3,24 +3,15 @@ const cheerio = require('cheerio')
 const config = require('../configs')
 const {push} = require('./socket')
 const schedule = require('node-schedule');
-const crypto = require('crypto');
 const iconv = require('iconv-lite');
 const zlib = require('zlib');
 const http = require('http')
-const md5 = crypto.createHash('md5');
 
-const LISTS = config.lists;
-
-const OWNS = config.owns;
-
+let LISTS, OWNS;
 const NOTICES = config.notices;
 const NOTICES2 = config.notices2;
 
 const SIGNALS = {
-    BUY_01: 'BUY_01',
-    BUY_02: 'BUY_02',
-    BUY_03: 'BUY_03',
-    BUY: 'BUY',
     NOTE: 'NOTE',
     SALE_01: '高于最近30日最高涨幅',
     SALE_02: '利空消息',
@@ -31,19 +22,26 @@ const SIGNALS = {
 
 let CACHE = {}
 
-schedule.scheduleJob({hour: 9, minute: 31, dayOfWeek: [1, 2, 3, 4, 5]}, function () {
-    CACHE = {}
-});
+let change = false;
 
+schedule.scheduleJob({hour: 9, minute: 31, dayOfWeek: [1, 2, 3, 4, 5]}, function () {
+    change = true
+});
 
 function run() {
     const scan = async (index) => {
+        LISTS = config.lists()
+        OWNS = config.owns()
+        if (change) {
+            CACHE = {}
+            change = false
+        }
         const target = LISTS[index]
         if (!target) {
             setTimeout(() => {
                 run()
             }, 3000)
-            return
+            return null
         }
         const {code} = target
         const current = await getToday(code, index)
@@ -51,8 +49,9 @@ function run() {
             await scan(index)
             return
         }
-        let rst = null
+        let rst = null, hasCache = 0
         if (!CACHE[code]) {
+            hasCache = 300
             rst = await get(code);
             if (!rst) {
                 await scan(index)
@@ -69,16 +68,17 @@ function run() {
             ...CACHE[code],
             notices,
         }
-
-
         const extras = await getExtra(code)
         if (extras) CACHE[code] = {
             ...CACHE[code],
             extras,
         }
-        await analysis(CACHE[code])
+        const date = await analysis(CACHE[code])
+        if (date) send(date)
         index++
-        await scan(index)
+        setTimeout(() => {
+            scan(index)
+        }, hasCache)
     }
     scan(0)
 }
@@ -91,54 +91,133 @@ async function analysis(data) {
             ...own
         }
     }
-    const warn = await getTargetRang(data)
-    if (warn) {
+    const state = await getTargetRang(data)
+    if (state) {
         return {
             ...data,
-            ...warn
+            ...state
         }
     }
     return null
 }
 
 async function getTargetRang(data) {
-    const {rst, target, current} = data
+    const {rst, current, extras, notices} = data
     const {l, ch, preDay} = rst
+    const {dzjy, xsjj} = extras || {}
     const today = parseFloat((current - preDay) / preDay * 100).toFixed(2)
-    const Low = ((current - ch) / ch * 100).toFixed(2)
-    let state = ''
-    if (today < l) {
-        state = 3
-        // send(SIGNALS.BUY, target)
-    } else if (Low < -10 && Low > -15) {
-        state = 2
-        // send(SIGNALS.BUY_01, {...target, Low})
-    } else if (Low < -15 && Low > -20) {
-        state = 3
-        // send(SIGNALS.BUY_02, {...target, Low})
-    } else if (Low < -20) {
-        state = 4
-        // send(SIGNALS.BUY_03, {...target, Low})
-    }
 
+    const Low = ((current - ch) / ch * 100).toFixed(2)
+    let state = 0
+    if (xsjj && xsjj.length > 0) {
+        const warns = xsjj.filter(notice => {
+            const {jjsj} = notice
+            const currentTime = new Date().getTime()
+            if (currentTime - 3 * 24 * 60 * 60 * 1000 < new Date(jjsj).getTime() &&
+                new Date(jjsj).getTime() < currentTime + 45 * 24 * 60 * 60 * 1000) {
+                return true
+            }
+            return false
+        })
+        if (warns && warns.length > 0) return {
+            state,
+            msgs: [SIGNALS.SALE_03],
+            code: SIGNALS.NOTE
+        }
+    }
+    const msgs = []
+    if (today < l) {
+        msgs.push('当前价格低于均价')
+        state = 3
+    } else if (Low < -10 && Low > -15) {
+        msgs.push('当前价格回调到10-15')
+        state = 1
+    } else if (Low < -15 && Low > -20) {
+        msgs.push('当前价格回调到15-20')
+        state = 2
+    } else if (Low < -20) {
+        msgs.push('当前价格回调到20')
+        state = 3
+    }
+    if (dzjy && dzjy.length > 0) {
+        const warns = dzjy.filter(notice => {
+            const {ggrq, cjj} = notice
+            if (new Date().getTime() - 1 * 24 * 60 * 60 * 1000 < new Date(ggrq).getTime()) {
+                if (Math.abs((parseFloat(cjj) - parseFloat(current)) / parseFloat(current)) < 0.02) return true
+            }
+            return false
+        })
+        // 大宗交易且大于当前价格
+        if (warns && warns.length > 6) {
+            msgs.push('10个以上大宗交易')
+            state += 3
+        } else if (warns && warns.length > 3) {
+            msgs.push('5个以上大宗交易')
+            state += 2
+        } else if (warns && warns.length > 0) {
+            msgs.push('1个以上大宗交易')
+            state += 1
+        }
+    }
+    if (notices && notices.length > 0) {
+        NOTICES.filter(notice => {
+            const {types = ''} = notice
+            const info = NOTICES.some(item => {
+                const index = types.indexOf(item)
+                if (index >= 0) {
+                    if (index <= 3) state += 2
+                    state += 1
+                    return true
+                }
+                return false
+            })
+            if (info) {
+                msgs.push('公告有利好')
+            }
+        })
+    }
+    return {
+        state,
+        msgs,
+        Low,
+        code: SIGNALS.NOTE
+    }
 }
 
+
 async function ownTarget(data) {
-    const {rst, target, current, notices} = data
+    const {rst, target, current, notices, extras} = data
     const {fh, preDay} = rst
     const today = parseFloat((current - preDay) / preDay * 100).toFixed(2)
     const {code} = target
-    const {gqzy, xsjj} = extras || {}
+    const {gqzy, xsjj, dzjy} = extras || {}
     if (OWNS.indexOf(code) === -1) return null
     if (today > fh) {
         return {
             code: SIGNALS.SALE_01
         }
     }
+    if (dzjy && dzjy.length > 0) {
+        const warns = dzjy.filter(notice => {
+            const {ggrq, cjj} = notice
+            if (new Date().getTime() - 1 * 24 * 60 * 60 * 1000 < new Date(ggrq).getTime()) {
+                // if (Math.abs((parseFloat(cjj) - parseFloat(current)) / parseFloat(current)) > 0.02) return true
+                return true
+            }
+            return false
+        })
+        // 大宗交易且大于当前价格
+        if (warns && warns.length > 0) return {
+            code: '大宗交易过多',
+            data: warns
+        }
+    }
     if (xsjj && xsjj.length > 0) {
         const warns = xsjj.filter(notice => {
             const {jjsj} = notice
-            if (new Date().getTime() - 3 * 24 * 60 * 60 * 1000 < new Date(jjsj).getTime()) {
+            const currentTime = new Date().getTime()
+            if (currentTime - 3 * 24 * 60 * 60 * 1000 < new Date(jjsj).getTime() &&
+                new Date(jjsj).getTime() < currentTime + 45 * 24 * 60 * 60 * 1000) {
                 return true
             }
             return false
@@ -182,10 +261,8 @@ async function ownTarget(data) {
 }
 
 
-function send(signal, data) {
-    console.log(signal, data)
+function send(data) {
     push({
-        signal,
         data
     })
 }
@@ -194,7 +271,7 @@ async function get(s) {
 
     return new Promise((resolve, reject) => {
         setTimeout(() => {
-            reject(null)
+            resolve(null)
         }, 8000)
         axios.get(`http://www.aigaogao.com/tools/history.html?s=${s}`)
             .then((rst) => {
@@ -242,7 +319,7 @@ async function getExtra(s) {
     else s = `SZ${s}`
     return new Promise((resolve, reject) => {
         setTimeout(() => {
-            reject(null)
+            resolve(null)
         }, 3000)
         axios.get(`http://emweb.securities.eastmoney.com/CompanyBigNews/CompanyBigNewsAjax?requesttimes=1&code=${s}`)
             .then((rst) => {
@@ -258,28 +335,13 @@ async function getExtra(s) {
 }
 
 
-//
-// else {
-//     NOTICES.forEach(item => {
-//         if (type.indexOf(item) != -1) {
-//             lists.push({
-//                 ...target,
-//                 href,
-//                 title,
-//                 id: art_code,
-//                 type: item
-//             })
-//         }
-//     })
-// }
-
 /*
 * 获取当前位置
 * */
 async function getToday(s) {
     return new Promise((resolve, reject) => {
         setTimeout(() => {
-            reject(null)
+            resolve(null)
         }, 2000)
         axios({
             url: "http://www.aigaogao.com/tools/action.aspx?act=apr",
@@ -314,7 +376,7 @@ async function msg(target) {
     const {code} = target
     return new Promise((resolve, reject) => {
         setTimeout(() => {
-            reject(null)
+            resolve(null)
         }, 3000)
         const req = http.request({
             hostname: 'data.eastmoney.com',
@@ -332,7 +394,7 @@ async function msg(target) {
                 chunks.push(chunk);
             });
             res.on('error', function (err) {
-                reject()
+                resolve()
             });
             res.on('end', function () {
                 const buffer = Buffer.concat(chunks);
