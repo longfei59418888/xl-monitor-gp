@@ -1,11 +1,25 @@
-let list = require('./list')
-let own = require('./own')
+const fs = require('fs-extra')
+const path = require('path')
+
+
+let own = null
+let list = null
 module.exports = {
-    lists: () => list,
-    setList: () => {
+    lists: async () => {
+        if (!list) list = await fs.readJson(path.join(__dirname, './list.json'))
+        return list
     },
-    owns: () => own,
-    setOwns: () => {
+    setList: async (data) => {
+        list = data;
+        await fs.writeJson(path.join(__dirname, './list.json'), list)
+    },
+    owns: async () => {
+        if (!own) own = await fs.readJson(path.join(__dirname, './own.json'))
+        return own
+    },
+    setOwns: async (data) => {
+        own = data;
+        await fs.writeJson(path.join(__dirname, './own.json'), own)
     },
     notices: [
         '回购预案',

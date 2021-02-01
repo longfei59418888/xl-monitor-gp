@@ -30,8 +30,8 @@ schedule.scheduleJob({hour: 9, minute: 31, dayOfWeek: [1, 2, 3, 4, 5]}, function
 
 function run() {
     const scan = async (index) => {
-        LISTS = config.lists()
-        OWNS = config.owns()
+        LISTS = await config.lists()
+        OWNS = await config.owns()
         if (change) {
             CACHE = {}
             change = false
@@ -191,7 +191,8 @@ async function ownTarget(data) {
     const today = parseFloat((current - preDay) / preDay * 100).toFixed(2)
     const {code} = target
     const {gqzy, xsjj, dzjy} = extras || {}
-    if (OWNS.indexOf(code) === -1) return null
+    const isOwn = OWNS.some(item => item.code === code)
+    if (!isOwn) return null
     if (today > fh) {
         return {
             code: SIGNALS.SALE_01

@@ -7,6 +7,7 @@
           content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no,viewport-fit=cover">
     <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
     <link rel="stylesheet" href="../bootstrap.min.css">
+    <script src="https://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -16,18 +17,24 @@
         body {
             padding: 30px;
         }
-        .table-responsive{
+
+        .table-responsive {
             margin-top: 20px;
         }
-        .options{
+
+        .options {
             font-size: 0;
         }
-        .options button{
+
+        .options button {
             font-size: 14px;
             display: inline-block;
             margin-right: 15px;
         }
     </style>
+    <script>
+        const TYPE = '<%- type %>'
+    </script>
 </head>
 <body>
 <div style="max-width: 640px;margin: 0 auto">
@@ -35,8 +42,8 @@
         <div class="row">
             <div class="col-lg-6">
                 <div class="input-group">
-                    <input type="text" class="form-control" placeholder="Search for...">
-                    <span class="input-group-btn"><button class="btn btn-default" type="button">添加</button></span>
+                    <input type="text" id="code" class="form-control" placeholder="Search for...">
+                    <span class="input-group-btn"><button id="search" class="btn btn-default" type="button">添加</button></span>
                 </div>
             </div>
         </div>
@@ -48,8 +55,10 @@
                     <td> <%- item.name %></td>
                     <td> <%- item.code %></td>
                     <td class="options">
-                        <button class="btn btn-success btn-xs" type="submit">持有</button>
-                        <button class="btn btn-danger btn-xs" type="submit">删除</button>
+                        <% if (type === 'list') { %>
+                            <button class="add btn btn-success btn-xs" type="submit">持有</button>
+                        <% } %>
+                        <button class="delete btn btn-danger btn-xs" type="submit">删除</button>
                     </td>
                 </tr>
             <% }); %>
@@ -57,8 +66,94 @@
     </div>
 </div>
 <script>
+    $('.table').delegate('.add', 'click', (e) => {
+        const parent = $(e.target).parents('tr')
+        const code = parent.find('td:nth-child(2)').text().trim()
+        const name = parent.find('td:nth-child(1)').text().trim()
+        $.ajax({
+            url: 'https://127.0.0.1:8000/config/own/add',
+            type: "POST",
+            dataType: "json",
+            data: {
+                code,
+                name
+            },
+            success: function (data) {
+                console.log(data)
+            }
+        })
+    }).delegate('.delete', 'click', (e) => {
+        const parent = $(e.target).parents('tr')
+        const code = parent.find('td:nth-child(2)').text().trim()
+        const name = parent.find('td:nth-child(1)').text().trim()
+        const url = TYPE === 'list' ? 'https://127.0.0.1:8000/config/list/delete' : 'https://127.0.0.1:8000/config/own/delete'
+        $.ajax({
+            url,
+            type: "POST",
+            dataType: "json",
+            data: {
+                code,
+                name
+            },
+            success: function (data) {
+                parent.remove()
+            }
+        })
+    })
+    $('#search').on('click', (e) => {
+        const key = $('#code').val()
+        jsonp(`https://suggest3.sinajs.cn/suggest/key=${key}`, () => {
+            const list = (suggestvalue + '').split(',')
+            if (!list || !list[2] || !list[4]) return
+            const code = list[2]
+            const name = list[4]
+            const url = TYPE === 'list' ? 'https://127.0.0.1:8000/config/list/add' : 'https://127.0.0.1:8000/config/own/add'
+            $.ajax({
+                url,
+                type: "POST",
+                dataType: "json",
+                data: {
+                    code,
+                    name
+                },
+                success: function (data) {
+                    $('.table tbody').append(`
+                       <tr>
+                            <td>${name}</td>
+                            <td>${code}</td>
+                            <td class="options">
+                                ${(TYPE === 'list' ? '<button class="add btn btn-success btn-xs" type="submit">持有</button>' : '')}
+                                <button class="delete btn btn-danger btn-xs" type="submit">删除</button>
+                            </td>
+                        </tr>
+                   `)
+                }
+            })
+        })
+        // $.ajax({
+        //     url,
+        //     type: "POST",
+        //     dataType: "json",
+        //     data: {
+        //         key
+        //     },
+        //     success: function (data) {
+        //         parent.remove()
+        //     }
+        // })
+    })
 
-
+    function jsonp(url, callback) {
+        const script = document.createElement('script')
+        script.src = url
+        const id = `jsonp_${new Date().getTime()}`
+        script.id = id
+        script.onload = () => {
+            $(`#${id}`).remove()
+            callback && callback()
+        }
+        document.querySelector('head').appendChild(script)
+    }
 </script>
 </body>
 </html>
