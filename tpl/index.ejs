@@ -2,27 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no,viewport-fit=cover">
     <title>Title</title>
+    <link rel="stylesheet" href="../bootstrap.min.css">
+    <script src="https://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+    <script crossorigin="anonymous"
+            integrity="sha512-ZqQWGugamKhlSUqM1d/HMtwNG+hITmd/ptoof91lt5ojFZ+2bKlkvlzkmnDIrnikDY+UDVZVupLf6MNbuhtFSw=="
+            src="https://lib.baomitu.com/socket.io/3.1.0/socket.io.min.js"></script>
     <style>
-        .red{
-            color: red;
+        * {
+            margin: 0;
+            padding: 0;
         }
-        .yellow{
-            color: #ffaf0a;
+
+        body {
+            padding: 30px;
         }
-        .green{
-            color: green;
+
+        .table-responsive {
+            margin-top: 20px;
+            border-top: none;
         }
     </style>
 </head>
 <body>
-<script crossorigin="anonymous"
-        integrity="sha512-ZqQWGugamKhlSUqM1d/HMtwNG+hITmd/ptoof91lt5ojFZ+2bKlkvlzkmnDIrnikDY+UDVZVupLf6MNbuhtFSw=="
-        src="https://lib.baomitu.com/socket.io/3.1.0/socket.io.min.js"></script>
-<ul id="list"></ul>
+<div class="option">
+    <div class="row">
+        <div class="col-md-6">
+            <button type="button" id="on-off" class="btn btn-primary">开关（<%- state %>）</button>
+        </div>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="table"></table>
+</div>
 <script>
+    const cache = {}
+    let LIST = []
 
-    function push(title) {
+    function push(title, target) {
+        const code = target.code
+
         const NotificationInstance = Notification || window.Notification;
         if (NotificationInstance.permission === "default") {
             NotificationInstance.requestPermission().then(() => {
@@ -34,7 +55,7 @@
 
         function send(title) {
             const n = new NotificationInstance(title, {
-                body: '你的朋友有新状态啦，快去围观吧！',
+                body: '有新的消息，点击查看！',
                 tag: '2ue',
                 data: {
                     url: 'https://2ue.github.io'
@@ -47,55 +68,78 @@
         }
     }
 
-    const cache = {}
-    const LIST = []
     var socket = io('https://127.0.0.1:8000');
     socket.on('getMsg', rsts => {
         const rst = JSON.parse(rsts)
-        console.log(rst)
-        return
-        const {
-            signal,
-            data = {}
-        } = rst
-        const {code, Low} = data
-
-        if (!cache[code] || Math.abs(cache[code] - Low) > 3 || signal === 'BUY' || signal === 'SALE') {
-            refresh(signal, rsts)
-            // push('test')
+        const {code, Low, state, target} = rst.data
+        if (code === "NOTE") {
+            if (state > 1) {
+                push(target.name, target)
+            }
         } else {
-            refresh(signal, rsts)
+            push(`${target.name}-${code}`, target)
         }
-        if (signal !== 'BUY' && signal !== 'SALE') {
-            cache[code] = Low
-        }
-
+        refresh(rst.data)
     })
 
-    function refresh(signal, rsts) {
-        if (signal == 'BUY_01') console.info(rsts)
-        if (signal == 'BUY_02') console.warn(rsts)
-        if (signal == 'BUY_03') console.error(rsts)
-        if (signal === 'BUY' || signal === 'SALE') console.error(`----------${rsts}------------`)
-        LIST.unshift({
-            signal,
-            rsts
-        })
+    function refresh(data) {
+        const {code, Low, state, target} = data
+        if (code === "NOTE") {
+            if (state >= 3) {
+                console.error(data)
+            } else if (state >= 2) {
+                console.info(data)
+            } else if (state >= 1) {
+                console.info(data)
+            } else {
+                console.log(data)
+            }
+        } else {
+            console.error(data)
+        }
+        LIST.unshift(data)
         LIST.slice(0, 25)
         let html = ''
         LIST.forEach(item => {
-            const {
-                signal,
-                rsts
-            } = item
-            if (item) {
-                if (signal == 'BUY_01') html += `<li class="green">${rsts}</li>`
-                if (signal == 'BUY_02') html += `<li class="yellow">${rsts}</li>`
-                if (signal == 'BUY_03' || signal === 'BUY' || signal === 'SALE') html += `<li class="red">${rsts}</li>`
+            const {code, Low, state, target} = item
+            let name = target.name, className = ''
+            if (code === "NOTE") {
+                if (state >= 3) className = 'danger'
+                else if (state >= 2) className = 'warning'
+                else if (state >= 1) className = 'info'
+            } else {
+                className = 'danger'
+                name = `${target.name}(${code})`
+            }
+            if (code !== "NOTE" || state >= 1) html += `
+                <tr class="${className}">
+                    <td>${name}</td>
+                    <td>${Low ? Low : ''}</td>
+                </tr>
+           `
+        })
+        document.querySelector('.table').innerHTML = html
+    }
+
+    let state = '<%- state %>'
+    $('#on-off').on('click', () => {
+        const url = state === '关闭' ? 'https://127.0.0.1:8000/option/stop' : 'https://127.0.0.1:8000/option/restart'
+        $.ajax({
+            url,
+            type: "POST",
+            dataType: "json",
+            data: {},
+            success: function () {
+                if (state === '关闭') {
+                    $('#on-off').text('开关（开启）')
+                    state = '开启'
+                } else {
+                    $('#on-off').text('开关（关闭）')
+                    state = '关闭'
+                }
             }
         })
-        document.querySelector('#list').innerHTML = html
-    }
+    })
 
 
 </script>

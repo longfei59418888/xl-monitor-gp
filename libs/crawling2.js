@@ -26,10 +26,36 @@ let change = false;
 
 schedule.scheduleJob({hour: 9, minute: 31, dayOfWeek: [1, 2, 3, 4, 5]}, function () {
     change = true
+    run()
 });
+schedule.scheduleJob({hour: 15, minute: 31, dayOfWeek: [1, 2, 3, 4, 5]}, function () {
+    stop()
+});
+
+let KEEP_RUN_STATE_STOP = false
+
+function stop() {
+    KEEP_RUN_STATE_STOP = true
+}
+
+function reStart() {
+    if (!KEEP_RUN_STATE_STOP) return
+    KEEP_RUN_STATE_STOP = false
+    run()
+}
+
+function getState() {
+    return {
+        KEEP_RUN_STATE_STOP,
+        CACHE,
+        change
+    }
+}
+
 
 function run() {
     const scan = async (index) => {
+        if (KEEP_RUN_STATE_STOP) return
         LISTS = await config.lists()
         OWNS = await config.owns()
         if (change) {
@@ -51,7 +77,7 @@ function run() {
         }
         let rst = null, hasCache = 0
         if (!CACHE[code]) {
-            hasCache = 300
+            hasCache = 500
             rst = await get(code);
             if (!rst) {
                 await scan(index)
@@ -78,7 +104,7 @@ function run() {
         index++
         setTimeout(() => {
             scan(index)
-        }, hasCache)
+        }, 600)
     }
     scan(0)
 }
@@ -400,7 +426,8 @@ async function msg(target) {
             res.on('end', function () {
                 const buffer = Buffer.concat(chunks);
                 zlib.gunzip(buffer, function (err, decoded) {
-                    deal(iconv.decode(decoded, 'gb2312'))
+                    if (!err) deal(iconv.decode(decoded, 'gb2312'))
+                    else resolve(null)
                 });
             });
         });
@@ -433,7 +460,8 @@ async function msg(target) {
 
 
 module.exports = {
-    run: function () {
-        run()
-    }
+    run,
+    stop,
+    reStart,
+    getState
 }
