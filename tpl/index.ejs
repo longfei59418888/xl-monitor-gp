@@ -40,7 +40,14 @@
 <script>
     const cache = {}
     let LIST = []
-
+    function toast(mess){
+        var str='<div class="mess"><span></span></div>';
+        $("body").append(str);
+        $(".mess").fadeIn().find("span").html(mess);
+        setTimeout(function(){
+            $(".mess").fadeOut();
+        },2000)
+    }
     function push(title, target) {
         const code = target.code
 
