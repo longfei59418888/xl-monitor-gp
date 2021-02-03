@@ -155,7 +155,7 @@ async function getTargetRang(data) {
     if (today < l) {
         msgs.push('当前价格低于均价')
         state = 3
-    } else if (-parseFloat(target) > Low) {
+    } else if (-parseFloat(target.range) > Low) {
         msgs.push('低于预设的2/3')
         state = 3
     } else if (Low < -10 && Low > -15) {
