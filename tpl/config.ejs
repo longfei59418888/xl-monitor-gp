@@ -66,24 +66,25 @@
     </div>
 </div>
 <script>
-    (function($) {
+    const origin = location.origin
+    (function ($) {
         $.extend({
-            toast: function(txt, opt) {
+            toast: function (txt, opt) {
                 var toastEl = $('#mToast');
                 option = $.extend({
                     timeout: 3000,
                     transitionTime: 800,
-                    cls:'mtoast'
+                    cls: 'mtoast'
                 }, opt);
                 if (toastEl.size() > 0) {
                     clearTimeout(toastEl.data('timer'))
                     toastEl.remove();
                 }
-                toastEl = $('<div id="mToast" class="'+ option.cls +'" style="position: fixed;bottom: 50px;left: 30px;right: 30px;text-align: center;"><span style="display: inline-block;box-sizing: border-box;background-color: rgba(0,0,0,.5);color: #fff;padding: 5px 8px;max-width: 100%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">' + txt + '</span></div>');
+                toastEl = $('<div id="mToast" class="' + option.cls + '" style="position: fixed;bottom: 50px;left: 30px;right: 30px;text-align: center;"><span style="display: inline-block;box-sizing: border-box;background-color: rgba(0,0,0,.5);color: #fff;padding: 5px 8px;max-width: 100%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">' + txt + '</span></div>');
                 $('body').append(toastEl);
                 toastEl.fadeIn(option.transitionTime);
-                toastEl.data('timer', setTimeout(function() {
-                    toastEl.fadeOut(option.transitionTime, function() {
+                toastEl.data('timer', setTimeout(function () {
+                    toastEl.fadeOut(option.transitionTime, function () {
                         toastEl.remove();
                     });
                 }, option.timeout));
@@ -95,7 +96,7 @@
         const code = parent.find('td:nth-child(2)').text().trim()
         const name = parent.find('td:nth-child(1)').text().trim()
         $.ajax({
-            url: 'https://127.0.0.1:8000/config/own/add',
+            url: `${origin}/config/own/add`,
             type: "POST",
             dataType: "json",
             data: {
@@ -111,7 +112,7 @@
         const parent = $(e.target).parents('tr')
         const code = parent.find('td:nth-child(2)').text().trim()
         const name = parent.find('td:nth-child(1)').text().trim()
-        const url = TYPE === 'list' ? 'https://127.0.0.1:8000/config/list/delete' : 'https://127.0.0.1:8000/config/own/delete'
+        const url = TYPE === 'list' ? `${origin}/config/list/delete` : `${origin}/config/own/delete`
         $.ajax({
             url,
             type: "POST",
@@ -133,7 +134,7 @@
             if (!list || !list[2] || !list[4]) return
             const code = list[2]
             const name = list[4]
-            const url = TYPE === 'list' ? 'https://127.0.0.1:8000/config/list/add' : 'https://127.0.0.1:8000/config/own/add'
+            const url = TYPE === 'list' ? `${origin}/config/list/add` : `${origin}/config/own/add`
             $.ajax({
                 url,
                 type: "POST",
@@ -144,10 +145,10 @@
                 },
                 success: function (data) {
                     console.log(data)
-                    $.toast(data.msg,{
+                    $.toast(data.msg, {
                         timeout: 3000,  // toast duration (default 3000)
                         transitionTime: 800,  // speed of show or hide (default 800)
-                        cls:'mtoast'   // a hook of class for override (default 'mtoast')
+                        cls: 'mtoast'   // a hook of class for override (default 'mtoast')
                     })
                     $('.table tbody').append(`
                        <tr>

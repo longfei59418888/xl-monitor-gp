@@ -40,6 +40,7 @@
 <script>
     const cache = {}
     let LIST = []
+    const origin = location.origin
 
     function toast(mess) {
         var str = '<div class="mess"><span></span></div>';
@@ -76,8 +77,8 @@
             }
         }
     }
-
-    var socket = io('https://127.0.0.1:8000');
+    console.log(location.origin)
+    var socket = io(origin);
     socket.on('getMsg', rsts => {
         const rst = JSON.parse(rsts)
         const {code, Low, state, target} = rst.data
@@ -133,7 +134,7 @@
 
     let state = '<%- state %>'
     $('#on-off').on('click', () => {
-        const url = state === '关闭' ? 'https://127.0.0.1:8000/option/stop' : 'https://127.0.0.1:8000/option/restart'
+        const url = state === '关闭' ? `${origin}/option/stop` : `${origin}/option/restart`
         $.ajax({
             url,
             type: "POST",
