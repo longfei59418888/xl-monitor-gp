@@ -40,14 +40,16 @@
 <script>
     const cache = {}
     let LIST = []
-    function toast(mess){
-        var str='<div class="mess"><span></span></div>';
+
+    function toast(mess) {
+        var str = '<div class="mess"><span></span></div>';
         $("body").append(str);
         $(".mess").fadeIn().find("span").html(mess);
-        setTimeout(function(){
+        setTimeout(function () {
             $(".mess").fadeOut();
-        },2000)
+        }, 2000)
     }
+
     function push(title, target) {
         const code = target.code
 
@@ -121,7 +123,8 @@
             if (code !== "NOTE" || state >= 1) html += `
                 <tr class="${className}">
                     <td>${name}</td>
-                    <td>${Low ? Low : ''}</td>
+                    <td>${Low ? Low : '&nbsp;'}</td>
+                    <td>${target.range}</td>
                 </tr>
            `
         })
